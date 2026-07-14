@@ -10,9 +10,10 @@ This repository contains the Python code to reproduce the numerical results of t
 
 ## Method
 
-Given state-transition data from an unknown stochastic linear system `x_{k+1} = A* x_k + w_k`, with `w_k ~ N(0, Q)`, the code jointly learns a **model matrix** `A` and 
-the **largest ellipsoidal probabilistic invariant set (p-PIS)** `P_α = {x : x^T P x ≤ α}` certified at a prescribed probability level `p`, subject to state constraints. 
-It also computes a certified lower bound `p̃` on the probability level for the true unknown system, accounting for model mismatch due to finite data.
+Given state-transition data from an unknown stochastic linear system `x_{k+1} = A* x_k + w_k`, with `w_k ~ N(0, Q)`, subject to state constraints, the code jointly learns:
+- a **model matrix** `A` and 
+- the **largest ellipsoidal probabilistic invariant set (p-PIS)** `P_α = {x : x^T P x ≤ α}` certified at a prescribed probability level `p`.  
+- It also computes a certified lower bound `p̃` on the probability level for the true unknown system, accounting for model mismatch due to finite data.
 
 The joint learning problem is solved by minimizing a regularized objective over a data-compatible model set `Θ_δ`:
 
