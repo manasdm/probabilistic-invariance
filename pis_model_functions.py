@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 Created on Thu Apr 30 13:42:16 2026
 
 @author: manas.mejari
@@ -52,21 +52,21 @@ def compute_mle(X, Xp):
 # ---------- Confidence ellipsoid Theta_delta -----------------
 
 def theta_stat(A, A_hat, Q, Sx):
-    # T(A) = tr(Q^{-1} (A-Ahat)^T Sx (A-Ahat))
+    # T(A) = tr(Q^{-1} (A-Ahat) Sx (A-Ahat)^T) = vec(A-Ahat)^T (Sx kron Q^{-1}) vec(A-Ahat) ~ chi2_{n^2}
     D = A - A_hat
-    return np.trace(np.linalg.solve(Q, D.T @ Sx @ D))
+    return np.trace(np.linalg.solve(Q, D @ Sx @ D.T))
 
 # ------------ Mismatch bound delta_rho (Cauchy-Schwarz in P-metric) --------
 
 def compute_delta_rho(P, Q, Sx, delta, n2):
     c_delta = np.sqrt(chi2.ppf(1 - delta, df=n2))
     Ph  = sqrtm(P).real;  Phi = np.linalg.inv(Ph)
-    lQ  = np.linalg.eigvalsh(Phi @ Q  @ Phi).max()
-    lSi = np.linalg.eigvalsh(Ph @ np.linalg.inv(Sx) @ Ph).max()
+    lQ  = np.linalg.eigvalsh(Ph @ Q  @ Ph).max()                    # = 1/lambda_min(P^{-1/2} Q^{-1} P^{-1/2})
+    lSi = np.linalg.eigvalsh(Phi @ np.linalg.inv(Sx) @ Phi).max()   # = 1/lambda_min(P^{1/2} Sx P^{1/2})
     return c_delta * np.sqrt(lQ) * np.sqrt(lSi)
 
 def rho_star(A_hat, P, Q, Sx, delta, n2):
-    # rho* = min(rho_hat + delta_rho, 1) — worst-case over Theta^stab
+    # rho* = min(rho_hat + delta_rho, 1) — upper bound on max_{A in Theta_delta} rho(A) (triangle ineq. + ||E||_2 <= ||E||_F)
     dr = compute_delta_rho(P, Q, Sx, delta, n2)
     return min(rho(A_hat, P) + dr, 1.0), dr
 
@@ -74,7 +74,7 @@ def rho_star(A_hat, P, Q, Sx, delta, n2):
 
 def alpha_max_polytopic(P, H, h):
     # X_c = {x | Hx <= h}: P_alpha ⊆ X iff
-    # alpha <= min_i  h_i^2 / ||P^{-1/2} h_i||^2
+    # alpha <= min_i  h_i^2 / ||P^{-1/2} H_i||^2 = min_i h_i^2 / (H_i^T P^{-1} H_i),  H_i = i-th row of H (h_i > 0)
     Phi = np.linalg.inv(sqrtm(P).real)
     return min((h[i]**2) / np.linalg.norm(Phi @ H[i])**2 for i in range(len(h)))
 
@@ -95,7 +95,7 @@ def solve_joint_maximal(A_hat, X, Xp, Sx, P, Q, p, delta, alpha_max, lam, A_init
     # min   (1/N)*||X' - AX||_F^2 - \lam*alpha*(A)
     # s.t. T(A) <= chi2_{n^2,1-delta}   [data compatibility: A in Theta_delta]
     #      rho(A) <= rho_max             [p-PIS fits inside X_c]
-    # Reformulation: maximise rho(A) (monotone proxy for alpha*)
+    # Implemented: -\lam*rho(A) replaces -\lam*alpha*(A) (monotone proxy; not equivalent for a fixed lam)
     # avoids the pole in -alpha*(A) near rho=1
     n    = P.shape[0]
     c_d2 = chi2.ppf(1 - delta, df=n**2)
@@ -134,7 +134,7 @@ def solve_joint_maximal(A_hat, X, Xp, Sx, P, Q, p, delta, alpha_max, lam, A_init
 # --------- Probability levels ------------------------------
 def compute_pstar(A_true, A_reg, P,  p):
     # p_star = F_{chi2_n}(cp^2 * ((1-rho(A_star))/(1-rho_reg))^2)
-    # Valid for alpha*(A_reg) on true plant w.p. 1-delta
+    # Largest level certified (via the PIS sufficient condition) for alpha*(A_reg) on the true A_true; deterministic (no delta)
     n = A_true.shape[0];  
     r_true = rho(A_true,P)
     r_reg  = rho(A_reg, P)
