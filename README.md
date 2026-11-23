@@ -10,24 +10,26 @@ This repository contains the code accompanying the paper:
 
 ## Method
 
-Given state-transition data from an unknown stochastic linear system `x_{k+1} = A* x_k + w_k`, with `w_k ~ N(0, Q)`, subject to state constraints, the code jointly learns:
-- a **model matrix** `A` and 
-- the **largest ellipsoidal probabilistic invariant set (p-PIS)** `P_α = {x : x^T P x ≤ α}` certified at a prescribed probability level `p`.  
-- It also computes a certified lower bound `p̃` on the probability level for the true unknown system, accounting for model mismatch due to finite data.
+Given state-transition data from an unknown stochastic linear system `x_{k+1} = A* x_k + w_k`, with `w_k ~ N(0, Q)` and state constraints `x_k ∈ X`, the code learns a model together with an ellipsoidal set `P_α = {x : x^T P x ≤ α}` with a fixed shape matrix `P`. The set should be a p-PIS (probabilistic invariant set of level `p`): if `x_0 ∈ P_α`, then `Pr(x_k ∈ P_α) ≥ p` for all `k ≥ 0`. The code solves the two parts of Problem 1 in the paper:
 
-The joint learning problem is solved by minimizing a regularized objective over a data-compatible model set `Θ_δ`:
+- **P1:** compute a **model matrix** `A` and a set parameter `α` such that `P_α ⊆ X` is a **p-PIS of smallest possible size for the model** `A`, for a prescribed probability level `p`.
+- **P2:** compute a **probability level `p̃`, as large as possible**, for which `P_α` is also a certified p̃-PIS for the **true system**.
+
+For a given model `A`, the smallest p-PIS certified by Proposition 1 is `P_α` with `α = ᾱ(A, p)` (defined below). The set designed for the best-fit (least-squares) model is minimal for that model, but its certified level for the true system may fall below `p`. Among the models compatible with the data, the method therefore looks for the **largest of these minimal sets** (obtained with a less contractive model), traded off against the data fit. Such a set accounts for the model uncertainty and is certified for the true system at a higher probability level `p̃`.
+
+The model is computed by solving problem (23) over the set `Θ_δ` of models compatible with the data:
 
 ```
 min_{A ∈ Θ_δ}   (1/N) ||X+ - A X||_F^2  -  λ ᾱ(A, p)
-subject to:      ᾱ(A, p) ≤ α_max
+subject to:      ρ(A) < 1,  ᾱ(A, p) ≤ α_max
 ```
 
-where 
-- `ᾱ(A, p) = β² c_p / (1 - ρ(A))²`, with `c_p = F^{-1}_{χ²_n}(p)` and `β = ||P^{1/2} Q^{1/2}||_2`, is the smallest `α` for which `P_α` is certified as a p-PIS for model `A` by the sufficient condition of the paper (requires `ρ(A) < 1`), and `ρ(A) = ||P^{1/2} A P^{-1/2}||_2` is the P-metric contraction rate. 
-- The set `Θ_δ` is a confidence ellipsoid for the true system matrix constructed from data, and `α_max` is the largest `α` such that `P_α ⊆ X` (for polytopic `X = {x : Hx ≤ h}`, `α_max = min_i h_i² / (H_i^T P^{-1} H_i)`), i.e., `P_{α_max}` is the largest ellipsoid of shape `P` inside the state constraints `X`. 
-- The regularization parameter `λ` controls the trade-off between data fit and invariant set size: `λ = 0` recovers the least-squares (LS) estimate `Â` (when ρ(Â) ≤ ρ_max, as in the example), 
-while larger `λ` yields larger invariant sets at the cost of reduced model accuracy. 
-- In the code (`solve_joint_maximal`), the term `λ ᾱ(A, p)` is replaced by the monotone proxy `λ ρ(A)` (ᾱ is strictly increasing in ρ for ρ < 1), and `ᾱ(A, p) ≤ α_max` is imposed equivalently as `ρ(A) ≤ ρ_max = 1 - β sqrt(c_p/α_max)`. The values of `λ` in the notebook refer to `λ ρ(A)`. In the code, `delta` is the miscoverage: the paper's level δ corresponds to `1 - delta` (paper δ = 0.98, code `delta = 0.02`).
+where
+- `ᾱ(A, p) = β² c_p / (1 - ρ(A))²` (13), with `c_p = F^{-1}_{χ²_n}(p)` and `β = ||P^{1/2} Q^{1/2}||_2`, is the smallest `α` for which `P_α` is certified as a p-PIS for model `A` by condition (9) of Proposition 1. It increases with the P-metric contraction rate `ρ(A) = ||P^{1/2} A P^{-1/2}||_2`, so less contractive models have larger minimal sets.
+- `Θ_δ` is the credible ellipsoid (20): it is built from the data and contains the true system matrix with posterior probability δ. `α_max` (5) is the largest `α` such that `P_α ⊆ X` (for polytopic `X = {x : Hx ≤ h}`, `α_max = min_i h_i² / (H_i^T P^{-1} H_i)`), i.e., `P_{α_max}` is the largest ellipsoid of shape `P` inside `X`.
+- The regularization parameter `λ` controls the trade-off between data fit and set size. `λ = 0` recovers the least-squares (LS) estimate `Â` (when ρ(Â) ≤ ρ_max, as in the example). Larger `λ` selects less contractive models, with larger sets and higher certified levels `p̃`, at the cost of reduced model accuracy, until the solution saturates at the least contractive model allowed by the constraints.
+- For the learned model `A_reg` and its set `P_{α_reg}`, with `α_reg = ᾱ(A_reg, p)`, Proposition 2 gives `p̃` in closed form (29), provided `ρ(Â) + ρ_Δ(N, δ) < 1` (28): with posterior probability at least δ, `P_{α_reg}` is a p̃-PIS for the true system (problem P2).
+- In the code (`solve_joint_maximal`), the term `λ ᾱ(A, p)` is replaced by the monotone proxy `λ ρ(A)` (ᾱ is strictly increasing in ρ for ρ < 1), and the two constraints are imposed together as `ρ(A) ≤ ρ_max = 1 - β sqrt(c_p/α_max)`. The values of `λ` in the notebook refer to `λ ρ(A)`. In the code, `delta` is the miscoverage: the paper's level δ corresponds to `1 - delta` (paper δ = 0.98, code `delta = 0.02`).
 
 ---
 
