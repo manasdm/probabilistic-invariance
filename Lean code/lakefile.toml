@@ -1,0 +1,16 @@
+name = "PISLean"
+version = "1.0.0"
+defaultTargets = ["PISLean"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+maxSynthPendingDepth = 3
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.34.1"
+
+[[lean_lib]]
+name = "PISLean"
